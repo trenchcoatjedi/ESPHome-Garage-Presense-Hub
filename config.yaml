@@ -94,7 +94,7 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_1_distance).state;
-      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement
+      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
         return false;
        }
       return true;
@@ -104,7 +104,7 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_2_distance).state;
-      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement
+      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
         return false;
        }
       return true;
