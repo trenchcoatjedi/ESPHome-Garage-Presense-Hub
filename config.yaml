@@ -24,10 +24,11 @@ logger:
 # Enable Home Assistant API
 api:
   reboot_timeout: 0s
-
+  # encryption:                 
 ota:
   - platform: esphome
-
+  # encryption:
+  
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -42,7 +43,7 @@ time:
   - platform: sntp
     id: sntp_time
     servers:
-     - pool0.ntp.org
+     - pool0.ntp.org # optionally change to another NTP server
     on_time:
       - cron: '0 0 1 * * *'
         then:
@@ -77,12 +78,12 @@ esp32_ble_tracker:
               - button.press: scan
   on_ble_advertise:
     - mac_address:
-        - XX:XX:XX:XX:XX:XX
+        - XX:XX:XX:XX:XX:XX # Change to real MAC address
       then:
         - lambda: |-
             ESP_LOGD("ble_adv", "Black Tag Packet Received");          
     - mac_address:
-        - XX:XX:XX:XX:XX:XX
+        - XX:XX:XX:XX:XX:XX # Change to real MAC address
       then:
         - lambda: |-
             ESP_LOGD("ble_adv", "Blue Tag Packet Received");    
@@ -93,7 +94,7 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_1_distance).state;
-      if (std::isnan(val) || val >= 1.2) {
+      if (std::isnan(val) || val >= 1.2) {   # must update number here to distance from car after installation and measurement
         return false;
        }
       return true;
@@ -103,13 +104,13 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_2_distance).state;
-      if (std::isnan(val) || val >= 1.2) {
+      if (std::isnan(val) || val >= 1.2) {   # must update number here to distance from car after installation and measurement
         return false;
        }
       return true;
 
   - platform: ble_presence
-    mac_address: XX:XX:XX:XX:XX:XX
+    mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
     id: black_beacon
     icon: "mdi:delete-empty"
     name: "Black Bin"
@@ -117,7 +118,7 @@ binary_sensor:
     device_class: presence
 
   - platform: ble_presence
-    mac_address: XX:XX:XX:XX:XX:XX
+    mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
     id: blue_beacon
     icon: "fa6-solid:blue"
     name: "Blue Bin"
@@ -125,7 +126,7 @@ binary_sensor:
     device_class: presence  
     
 ble_client:
-  - mac_address: XX:XX:XX:XX:XX:XX
+  - mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
     id: black_tag_black
     auto_connect: false
     on_connect:
@@ -133,14 +134,14 @@ ble_client:
         - delay: 2s
         - ble_client.ble_write:
             id: black_tag_black
-            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service
-            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic
+            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service, may not be available 
+            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic, may not be available 
             value: [0x00]                   # 0x00 = No Alert
     on_disconnect:
       then:
         - delay: 3s
         - button.press: blue      
-  - mac_address: XX:XX:XX:XX:XX:XX
+  - mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
     id: blue_tag_blue
     auto_connect: false
     on_connect:
@@ -148,8 +149,8 @@ ble_client:
         - delay: 2s
         - ble_client.ble_write:
             id: blue_tag_blue
-            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service
-            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic
+            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service, may not be available 
+            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic, may not be available 
             value: [0x00]                   # 0x00 = No Alert
    
 button:
