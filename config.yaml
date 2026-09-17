@@ -42,8 +42,9 @@ captive_portal:
 time:
   - platform: sntp
     id: sntp_time
+    timezone: Your/Timezone #replace with your own
     servers:
-     - pool0.ntp.org # optionally change to another NTP server
+     - your.ntp.server #replace with your own
     on_time:
       - cron: '0 0 1 * * *'
         then:
