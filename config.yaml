@@ -1,0 +1,277 @@
+esphome:
+  name: "garage-presence-hub"
+  friendly_name: Garage Presence Hub
+  on_boot:
+    then:
+      - delay: 70s
+      - button.press: black
+        
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+    advanced:
+      minimum_chip_revision: "3.1"
+      sram1_as_iram: true
+
+# Enable logging
+logger:
+  level: DEBUG
+  logs:
+    ultrasonic.sensor: WARN
+
+  
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Garage-Presence-Hub-Fallback-Hotspot"
+
+captive_portal:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+     - pool0.ntp.org
+    on_time:
+      - cron: '0 0 1 * * *'
+        then:
+          - esp32_ble_tracker.stop_scan:
+          - button.press: black
+    update_interval: 12h
+
+esp32_ble_tracker:
+  scan_parameters:
+    duration: 365s
+    interval: 1000ms
+    window: 900ms
+    active: false
+    continuous: true
+  on_scan_end:
+    - then:
+        - lambda: |
+            ESP_LOGD("ble_auto", "BLE scan ended, restarting...");
+        - delay: 10s
+        - if:
+            condition:
+              not:
+                - component.is_idle: blue_tag_blue
+                - component.is_idle: black_tag_black
+            then:
+              - delay:
+                  seconds: '60'
+              - button.press: scan
+            else:
+              - delay:
+                  seconds: '2'
+              - button.press: scan
+  on_ble_advertise:
+    - mac_address:
+        - XX:XX:XX:XX:XX:XX
+      then:
+        - lambda: |-
+            ESP_LOGD("ble_adv", "Black Tag Packet Received");          
+    - mac_address:
+        - XX:XX:XX:XX:XX:XX
+      then:
+        - lambda: |-
+            ESP_LOGD("ble_adv", "Blue Tag Packet Received");    
+            
+binary_sensor:
+  - platform: template
+    name: "Car 1"
+    device_class: presence
+    lambda: |-
+      float val = id(car_1_distance).state;
+      if (std::isnan(val) || val >= 1.2) {
+        return false;
+       }
+      return true;
+
+  - platform: template
+    name: "Car 2"
+    device_class: presence
+    lambda: |-
+      float val = id(car_2_distance).state;
+      if (std::isnan(val) || val >= 1.2) {
+        return false;
+       }
+      return true;
+
+  - platform: ble_presence
+    mac_address: XX:XX:XX:XX:XX:XX
+    id: black_beacon
+    icon: "mdi:delete-empty"
+    name: "Black Bin"
+    timeout: 360s    
+    device_class: presence
+
+  - platform: ble_presence
+    mac_address: XX:XX:XX:XX:XX:XX
+    id: blue_beacon
+    icon: "fa6-solid:blue"
+    name: "Blue Bin"
+    timeout: 360s    
+    device_class: presence  
+    
+ble_client:
+  - mac_address: XX:XX:XX:XX:XX:XX
+    id: black_tag_black
+    auto_connect: false
+    on_connect:
+      then:
+        - delay: 2s
+        - ble_client.ble_write:
+            id: black_tag_black
+            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service
+            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic
+            value: [0x00]                   # 0x00 = No Alert
+    on_disconnect:
+      then:
+        - delay: 3s
+        - button.press: blue      
+  - mac_address: XX:XX:XX:XX:XX:XX
+    id: blue_tag_blue
+    auto_connect: false
+    on_connect:
+      then:
+        - delay: 2s
+        - ble_client.ble_write:
+            id: blue_tag_blue
+            service_uuid: "0000ffe0-0000-1000-8000-00805f9b34fb"         # Link Loss Service
+            characteristic_uuid: "0000ffe2-0000-1000-8000-00805f9b34fb"   # Alert Level Characteristic
+            value: [0x00]                   # 0x00 = No Alert
+   
+button:
+  - platform: template
+    name: "Start BLE Scan"
+    id: scan
+    icon: "mdi:bluetooth-connect"
+    on_press:
+      then:
+       - logger.log: "Starting BLE scan.."
+       - esp32_ble_tracker.start_scan: 
+  - platform: template
+    id: black 
+    name: "Force Update Black Tag Battery"
+    icon: "mdi:bluetooth-connect"
+    on_press:
+      then:
+       - logger.log: "Manual battery update button pressed for Black tag. Forcing iTag connection..."
+       - esp32_ble_tracker.stop_scan: 
+       - ble_client.connect:
+           id: black_tag_black
+  - platform: template
+    name: "Force Update Blue Tag Battery"
+    id: blue
+    icon: "mdi:bluetooth-connect"
+    on_press:
+      then:
+       - logger.log: "Manual battery update button pressed for Blue tag. Forcing iTag connection..."
+       - esp32_ble_tracker.stop_scan: 
+       - ble_client.connect:
+           id: blue_tag_blue     
+  - platform: restart
+    name: "Restart Device"
+    entity_category: "diagnostic"  
+    
+sensor:
+  - platform: ultrasonic
+    id: car_1_distance
+    trigger_pin: GPIO4
+    echo_pin: GPIO16
+    name: "Car 1 Sonar Distance"
+    update_interval: 1s
+    state_class: measurement
+    device_class: distance
+    unit_of_measurement: m
+    icon: "mdi:ruler"
+    entity_category: "diagnostic"   
+    disabled_by_default: true
+    
+  - platform: ultrasonic
+    id: car_2_distance
+    trigger_pin: GPIO18
+    echo_pin: GPIO19
+    name: "Car 2 Sonar Distance"
+    update_interval: 1s
+    state_class: measurement
+    device_class: distance
+    unit_of_measurement: m
+    icon: "mdi:ruler"
+    entity_category: "diagnostic"    
+    disabled_by_default: true
+   
+  - platform: ble_client
+    type: characteristic
+    ble_client_id: black_tag_black
+    id: black_battery
+    name: "Black Tag Battery"
+    service_uuid: '180f'
+    characteristic_uuid: '2a19'
+    icon: 'mdi:battery'
+    unit_of_measurement: '%'
+    entity_category: "diagnostic" 
+    device_class: battery    
+    state_class: measurement
+    update_interval: never
+    filters:
+      - lambda: |-
+          if (std::isnan(x)) {
+            return {}; // Returning an empty optional drops the update completely
+          } else {
+            return x;  // Keeps the valid numeric value
+          }
+    on_value:
+      then:
+        - delay: 5s
+        - ble_client.disconnect: black_tag_black
+  - platform: ble_client
+    type: characteristic
+    ble_client_id: blue_tag_blue
+    id: blue_battery
+    name: "Blue Tag Battery"
+    service_uuid: '180f'
+    characteristic_uuid: '2a19'
+    icon: 'mdi:battery'
+    unit_of_measurement: '%'
+    entity_category: "diagnostic" 
+    device_class: battery    
+    state_class: measurement
+    update_interval: never
+    filters:
+      - lambda: |-
+          if (std::isnan(x)) {
+            return {}; // Returning an empty optional drops the update completely
+          } else {
+            return x;  // Keeps the valid numeric value
+          }
+    on_value:
+      then:
+        - delay: 2s
+        - ble_client.disconnect: blue_tag_blue
+        - delay: 2s 
+        - button.press: scan 
+
+### Optional BLE RSSI Sensor ###
+#   - platform: ble_client
+#     type: rssi
+#     ble_client_id: tag_black
+#     id: black_rssi
+#     name: "black Signal Strength"  
+#     entity_category: "diagnostic" 
+#     icon: 'mdi:bluetooth-audio'    
+#     unit_of_measurement: 'dB'
+#     state_class: measurement
+#     device_class: signal_strength
+
