@@ -1,3 +1,12 @@
+substitutions:
+  ble_mac_1: XX:XX:XX:XX:XX:XX # Replace with real MAC address of BLE itag 
+  ble_mac_2: XX:XX:XX:XX:XX:XX # Replace with real MAC address of BLE itag
+  presence_timeout: 360s       # Replace with desired timeout interval; default 360s
+  car_1_distance: 1.2          # This must be changed to distance in meters from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
+  car_2_distance: 1.2          # This must be changed to distance in meters from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
+  tz: America/New_York         # Replace with actual Time Zone using TZ data format
+  ntp: 0.pool.ntp.org          # Optionally change the NTP server
+  
 esphome:
   name: "garage-presence-hub"
   friendly_name: Garage Presence Hub
@@ -42,9 +51,9 @@ captive_portal:
 time:
   - platform: sntp
     id: sntp_time
-    timezone: Your/Timezone #replace with your own
+    timezone: ${tz}
     servers:
-     - your.ntp.server #replace with your own
+     - ${ntp}
     on_time:
       - cron: '0 0 1 * * *'
         then:
@@ -79,12 +88,12 @@ esp32_ble_tracker:
               - button.press: scan
   on_ble_advertise:
     - mac_address:
-        - XX:XX:XX:XX:XX:XX # Change to real MAC address
+        - ${ble_mac_1}
       then:
         - lambda: |-
             ESP_LOGD("ble_adv", "Black Tag Packet Received");          
     - mac_address:
-        - XX:XX:XX:XX:XX:XX # Change to real MAC address
+        - ${ble_mac_2} # Change to real MAC address
       then:
         - lambda: |-
             ESP_LOGD("ble_adv", "Blue Tag Packet Received");    
@@ -95,7 +104,7 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_1_distance).state;
-      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
+      if (std::isnan(val) || val >= ${car_1_distance}) {   
         return false;
        }
       return true;
@@ -105,29 +114,29 @@ binary_sensor:
     device_class: presence
     lambda: |-
       float val = id(car_2_distance).state;
-      if (std::isnan(val) || val >= 1.2) {   // must update number here to distance from car after installation and measurement, assumes ultrasonic sensor is ceiling mounted above vehicle
+      if (std::isnan(val) || val >= ${car_2_distance}) {   
         return false;
        }
       return true;
 
   - platform: ble_presence
-    mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
+    mac_address: ${ble_mac_1}
     id: black_beacon
     icon: "mdi:delete-empty"
     name: "Black Bin"
-    timeout: 360s    
+    timeout: ${presence_timeout}      
     device_class: presence
 
   - platform: ble_presence
-    mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
+    mac_address: ${ble_mac_2}
     id: blue_beacon
     icon: "fa6-solid:blue"
     name: "Blue Bin"
-    timeout: 360s    
+    timeout: ${presence_timeout}    
     device_class: presence  
     
 ble_client:
-  - mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
+  - mac_address: ${ble_mac_1}
     id: black_tag_black
     auto_connect: false
     on_connect:
@@ -142,7 +151,7 @@ ble_client:
       then:
         - delay: 3s
         - button.press: blue      
-  - mac_address: XX:XX:XX:XX:XX:XX # Change to real MAC address
+  - mac_address: ${ble_mac_2}
     id: blue_tag_blue
     auto_connect: false
     on_connect:
